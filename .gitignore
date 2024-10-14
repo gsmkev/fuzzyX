@@ -127,6 +127,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+sentiment/
+output.csv
 
 # Spyder project settings
 .spyderproject
