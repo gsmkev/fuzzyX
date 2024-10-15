@@ -211,16 +211,24 @@ def defuzzify_and_classify(aggregated, x_op):
 # Módulo 6: Generar un resumen de los resultados
 def benchmarks_and_summary(total_time, total_fuzzy_time, total_defuzz_time, total_vader_fuzzy_time, total_vader_defuzz_time, total_afinn_fuzzy_time, total_afinn_defuzz_time, total_vader_pos_count, total_vader_neg_count, total_vader_neu_count, total_afinn_pos_count, total_afinn_neg_count, total_afinn_neu_count, total_tweets):
     """
-    Genera un resumen de los resultados del análisis de sentimiento y tiempos de ejecución.
-    
-    Args:
-        df (pandas.DataFrame): DataFrame con los resultados del análisis de sentimiento.
-        total_time (float): Tiempo total de ejecución.
-        total_fuzzy_time (float): Tiempo total de ejecución de las reglas fuzzy.
-        total_defuzz_time (float): Tiempo total de ejecución de la defuzzificación.
-    
-    Returns:
-        None
+    Genera un resumen de los resultados de clasificación y tiempos de procesamiento.
+    Parámetros:
+    - total_time (float): Tiempo total de ejecución en segundos.
+    - total_fuzzy_time (float): Tiempo total de procesamiento fuzzy en segundos.
+    - total_defuzz_time (float): Tiempo total de procesamiento defuzz en segundos.
+    - total_vader_fuzzy_time (float): Tiempo de procesamiento fuzzy para VADER en segundos.
+    - total_vader_defuzz_time (float): Tiempo de procesamiento defuzz para VADER en segundos.
+    - total_afinn_fuzzy_time (float): Tiempo de procesamiento fuzzy para AFINN en segundos.
+    - total_afinn_defuzz_time (float): Tiempo de procesamiento defuzz para AFINN en segundos.
+    - total_vader_pos_count (int): Cantidad de tweets positivos según VADER.
+    - total_vader_neg_count (int): Cantidad de tweets negativos según VADER.
+    - total_vader_neu_count (int): Cantidad de tweets neutrales según VADER.
+    - total_afinn_pos_count (int): Cantidad de tweets positivos según AFINN.
+    - total_afinn_neg_count (int): Cantidad de tweets negativos según AFINN.
+    - total_afinn_neu_count (int): Cantidad de tweets neutrales según AFINN.
+    - total_tweets (int): Cantidad total de tweets procesados.
+    Retorna:
+    - None: La función imprime un resumen tabulado de los resultados.
     """
     # Crear el resumen
     summary_data = {
@@ -287,13 +295,43 @@ def visualize_memberships(aggregated, x_op, defuzzified_output, op_neg, op_neu, 
 
 # Función principal
 def main():
+    """
+    Función principal que realiza el análisis de sentimiento y la clasificación fuzzy de tweets.
+    Modules:
+     1. process_text_data: Procesa los datos de texto según las instrucciones de la Sección 3.1.
+     2. analyze_sentiment: Analiza el sentimiento de las oraciones según las instrucciones de la Sección 3.2.
+     3. fuzzification: Aplica reglas difusas para calcular una agregación de activaciones según las instrucciones de la Sección 3.3.1.
+     4. define_fuzzy_membership: Define las funciones de membresía fuzzy según las instrucciones de la Sección 3.3.2 y 3.3.3.
+     5. defuzzify_and_classify: Desfuzzifica y clasifica el resultado basado en la salida desfuzzificada según las instrucciones de la Sección 3.3.4.
+     6. benchmarks_and_summary: Genera un resumen de los resultados de clasificación y tiempos de procesamiento según las instrucciones de la Sección 3.4.
+    Variables:
+     - processed_data: Datos procesados del texto.
+     - analyzed_data: Datos analizados con los puntajes de sentimiento.
+     - x_op, p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos: Parámetros de membresía fuzzy.
+     - data: Lista para almacenar los datos de la tabla.
+     - df: DataFrame que contiene los resultados del análisis.
+     - total_time: Tiempo total de ejecución.
+     - total_fuzzy_time: Tiempo total de fuzzificación.
+     - total_defuzz_time: Tiempo total de defuzzificación.
+     - total_vader_fuzzy_time: Tiempo total de fuzzificación para VADER.
+     - total_vader_defuzz_time: Tiempo total de defuzzificación para VADER.
+     - total_afinn_fuzzy_time: Tiempo total de fuzzificación para AFINN.
+     - total_afinn_defuzz_time: Tiempo total de defuzzificación para AFINN.
+     - total_vader_pos_count: Conteo total de tweets positivos según VADER.
+     - total_vader_neg_count: Conteo total de tweets negativos según VADER.
+     - total_vader_neu_count: Conteo total de tweets neutrales según VADER.
+     - total_afinn_pos_count: Conteo total de tweets positivos según AFINN.
+     - total_afinn_neg_count: Conteo total de tweets negativos según AFINN.
+     - total_afinn_neu_count: Conteo total de tweets neutrales según AFINN.
+     - total_tweets: Número total de tweets analizados.
+    """
     # Módulo 1: Procesamiento del texto según las instrucciones de la Sección 3.1.
     processed_data = process_text_data(traindata)
     
-    # Módulo 2: Análisis de sentimiento usando VADER y AFINN
+    # Módulo 2: Análisis de sentimiento usando VADER y AFINN según las instrucciones de la Sección 3.2.
     analyzed_data = analyze_sentiment(processed_data)
     
-    # Módulo 4: Definir las funciones de membresía fuzzy
+    # Módulo 4: Definir las funciones de membresía fuzzy según las instrucciones de la Sección 3.3.2 y 3.3.3.
     _, _, x_op, p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos = define_fuzzy_membership()
     
     # Crear una lista para almacenar los datos de la tabla
@@ -308,22 +346,22 @@ def main():
         pos_score_afinn = row['afinn_pos']
         neg_score_afinn = row['afinn_neg']
         
-        # Módulo 3: Aplicar la fuzzificación para VADER
+        # Módulo 3: Aplicar la fuzzificación para VADER según las instrucciones de la Sección 3.3.1.
         time_fuzzy_vader_start = time.time()
         aggregated_vader = fuzzification(pos_score_vader, neg_score_vader, 'vader', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
         time_fuzzy_vader_end = time.time()
         
-        # Módulo 3: Aplicar la fuzzificación para AFINN
+        # Módulo 3: Aplicar la fuzzificación para AFINN según las instrucciones de la Sección 3.3.1.
         time_fuzzy_afinn_start = time.time()
         aggregated_afinn = fuzzification(pos_score_afinn, neg_score_afinn, 'afinn', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
         time_fuzzy_afinn_end = time.time()
         
-        # Módulo 5: Defuzzificación y clasificación para VADER
+        # Módulo 5: Defuzzificación y clasificación para VADER según las instrucciones de la Sección 3.3.4.
         time_defuzz_vader_start = time.time()
         classification_vader, defuzzified_score_vader = defuzzify_and_classify(aggregated_vader, x_op)
         time_defuzz_vader_end = time.time()
         
-        # Módulo 5: Defuzzificación y clasificación para AFINN
+        # Módulo 5: Defuzzificación y clasificación para AFINN según las instrucciones de la Sección 3.3.4.
         time_defuzz_afinn_start = time.time()
         classification_afinn, defuzzified_score_afinn = defuzzify_and_classify(aggregated_afinn, x_op)
         time_defuzz_afinn_end = time.time()
