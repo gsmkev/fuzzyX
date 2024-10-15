@@ -46,7 +46,6 @@ Sigue los siguientes pasos para instalar el proyecto en tu entorno local.
 
 1. Clonar el repositorio
 ```bash
-Copy code
 git clone https://github.com/kevinfpuna/fuzzyX.git
 cd fuzzyX
 ```

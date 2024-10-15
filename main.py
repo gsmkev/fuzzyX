@@ -8,6 +8,7 @@ import time
 import os
 import nltk
 from tabulate import tabulate
+from afinn import Afinn
 
 # Descargar y configurar VADER lexicon
 nltk.download('vader_lexicon', download_dir=os.getcwd())
@@ -59,53 +60,58 @@ def process_text_data(data):
     data['sentence'] = data['sentence'].apply(lambda x: clean(x.lower()))
     return data
 
-# Módulo 2: Análisis de sentimiento usando VADER
+# Módulo 2: Análisis de sentimiento usando VADER y AFINN
 def analyze_sentiment(data):
     """
-    Analiza el sentimiento de las oraciones en el DataFrame dado.
+    Analiza el sentimiento de las oraciones en el DataFrame dado usando VADER y AFINN.
     Args:
         data (DataFrame): Un DataFrame que contiene una columna 'sentence' con las oraciones a analizar.
     Returns:
-        DataFrame: El DataFrame original con tres nuevas columnas: 'pos', 'neg', y 'neu', que representan
-                   los puntajes de sentimiento positivo, negativo y neutral respectivamente.
+        DataFrame: El DataFrame original con tres nuevas columnas: 'pos', 'neg', 'neu' (VADER) y 
+                   dos nuevas columnas 'afinn_pos' y 'afinn_neg' (AFINN).
     """
-    # Inicializar el analizador de sentimientos VADER
+    # Inicializar el analizador de sentimientos VADER y AFINN
     sid = SentimentIntensityAnalyzer()
-    
+    afinn = Afinn()
+
     # Calcular los puntajes de sentimiento para cada oración
-    data['pos'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['pos'])
-    data['neg'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['neg'])
-    data['neu'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['neu'])
+    data['vader_pos'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['pos'])
+    data['vader_neg'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['neg'])
+    data['vader_neu'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['neu'])
+    
+    # Calcular puntajes de AFINN
+    data['afinn_score'] = data['sentence'].apply(lambda x: afinn.score(x))
+    
+    # Determinar si el puntaje de AFINN es positivo o negativo
+    data['afinn_pos'] = data['afinn_score'].apply(lambda x: x if x > 0 else 0)
+    data['afinn_neg'] = data['afinn_score'].apply(lambda x: abs(x) if x < 0 else 0)
+    
     return data
 
-# Módulo 3: Aplicar las reglas fuzzy
-def fuzzification(pos_score, neg_score, _, p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos):
+# Módulo 3: Aplicar las reglas fuzzy (adaptado para AFINN o VADER)
+def fuzzification(pos_score, neg_score, algorithm, p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos):
     """
-    Aplica reglas difusas para calcular una agregación de activaciones.
+    Aplica reglas difusas para calcular una agregación de activaciones, considerando el algoritmo especificado (VADER o AFINN).
     Args:
         pos_score (float): Puntuación positiva.
         neg_score (float): Puntuación negativa.
-        x_op (array): Rango de operación.
-        p_lo (array): Membresía baja positiva.
-        p_md (array): Membresía media positiva.
-        p_hi (array): Membresía alta positiva.
-        n_lo (array): Membresía baja negativa.
-        n_md (array): Membresía media negativa.
-        n_hi (array): Membresía alta negativa.
-        op_neg (array): Operación negativa.
-        op_neu (array): Operación neutral.
-        op_pos (array): Operación positiva.
+        algorithm (str): El algoritmo que se está utilizando, puede ser 'vader' o 'afinn'.
+        Otros parámetros: Funciones de membresía fuzzy.
     Returns:
         array: Agregación de todas las activaciones.
     """
-    # Interpolación de la membresía
-    p_level_lo = fuzz.interp_membership(np.arange(0, 1, 0.1), p_lo, pos_score)
-    p_level_md = fuzz.interp_membership(np.arange(0, 1, 0.1), p_md, pos_score)
-    p_level_hi = fuzz.interp_membership(np.arange(0, 1, 0.1), p_hi, pos_score)
+    # Establecemos el rango dependiendo del algoritmo: VADER (0 a 1), AFINN (0 a 10)
+    score_range = np.arange(0, 1, 0.1) if algorithm == "vader" else np.arange(0, 10, 1)
     
-    n_level_lo = fuzz.interp_membership(np.arange(0, 1, 0.1), n_lo, neg_score)
-    n_level_md = fuzz.interp_membership(np.arange(0, 1, 0.1), n_md, neg_score)
-    n_level_hi = fuzz.interp_membership(np.arange(0, 1, 0.1), n_hi, neg_score)
+    # Interpolación de la membresía para el puntaje positivo
+    p_level_lo = fuzz.interp_membership(score_range, p_lo, pos_score)
+    p_level_md = fuzz.interp_membership(score_range, p_md, pos_score)
+    p_level_hi = fuzz.interp_membership(score_range, p_hi, pos_score)
+    
+    # Interpolación de la membresía para el puntaje negativo
+    n_level_lo = fuzz.interp_membership(score_range, n_lo, neg_score)
+    n_level_md = fuzz.interp_membership(score_range, n_md, neg_score)
+    n_level_hi = fuzz.interp_membership(score_range, n_hi, neg_score)
     
     # Reglas difusas
     active_rule1 = np.fmin(p_level_lo, n_level_lo)
@@ -177,13 +183,22 @@ def define_fuzzy_membership():
 def defuzzify_and_classify(aggregated, x_op):
     """
     Desfuzzifica y clasifica el resultado basado en la salida desfuzzificada.
+    Si la agregación de membresía está vacía (sin activaciones), retorna una clasificación predeterminada.
     Args:
         aggregated (array-like): El conjunto de datos agregados.
         x_op (array-like): El conjunto de valores x correspondientes.
     Returns:
         tuple: Una tupla que contiene la clasificación (str) y el valor desfuzzificado (float).
     """
+    # Verificar si el área bajo la función de membresía es no nula
+    if np.sum(aggregated) == 0:
+        # Si no hay activación, retornar una clasificación predeterminada
+        return "Neutral", 5.0  # Asignamos "Neutral" y un valor desfuzzificado de 5.0 como predeterminado
+    
+    # Realizar la defuzzificación si hay activaciones
     defuzzified_output = fuzz.defuzz(x_op, aggregated, 'centroid')
+    
+    # Clasificación basada en el valor defuzzificado
     if 0 <= defuzzified_output < 3.33:
         classification = "Negative"
     elif 3.33 <= defuzzified_output <= 6.66:
@@ -194,7 +209,7 @@ def defuzzify_and_classify(aggregated, x_op):
     return classification, defuzzified_output
 
 # Módulo 6: Generar un resumen de los resultados
-def benchmarks_and_summary(df, total_time, total_fuzzy_time, total_defuzz_time):
+def benchmarks_and_summary(total_time, total_fuzzy_time, total_defuzz_time, total_vader_fuzzy_time, total_vader_defuzz_time, total_afinn_fuzzy_time, total_afinn_defuzz_time, total_vader_pos_count, total_vader_neg_count, total_vader_neu_count, total_afinn_pos_count, total_afinn_neg_count, total_afinn_neu_count, total_tweets):
     """
     Genera un resumen de los resultados del análisis de sentimiento y tiempos de ejecución.
     
@@ -209,15 +224,28 @@ def benchmarks_and_summary(df, total_time, total_fuzzy_time, total_defuzz_time):
     """
     # Crear el resumen
     summary_data = {
-        "Clasificación": ["Positivos", "Negativos", "Neutrales", "Total Procesado", "Tiempo Total de Ejecución (s)", "Tiempo Total Fuzzy (s)", "Tiempo Total Defuzz (s)"],
+        "Clasificación": ["Positivos VADER", "Negativos VADER", "Neutrales VADER", 
+                          "Positivos AFINN", "Negativos AFINN", "Neutrales AFINN", 
+                          "Total Procesado", 
+                          "Tiempo Total de Ejecución (s)", "Tiempo Total Fuzzy (s)", 
+                          "Tiempo Total Defuzz (s)", "Tiempo Fuzzy VADER (s)", 
+                          "Tiempo Defuzz VADER (s)", "Tiempo Fuzzy AFINN (s)", 
+                          "Tiempo Defuzz AFINN (s)"],
         "Cantidad": [
-            (df["Clasificación"] == "Positive").sum(),
-            (df["Clasificación"] == "Negative").sum(),
-            (df["Clasificación"] == "Neutral").sum(),
-            len(df),
-            f"{total_time:.2f}",
-            f"{total_fuzzy_time:.2f}",
-            f"{total_defuzz_time:.2f}"
+            f"{total_vader_pos_count} ({(total_vader_pos_count / total_tweets) * 100:.2f}%)",
+            f"{total_vader_neg_count} ({(total_vader_neg_count / total_tweets) * 100:.2f}%)",
+            f"{total_vader_neu_count} ({(total_vader_neu_count / total_tweets) * 100:.2f}%)",
+            f"{total_afinn_pos_count} ({(total_afinn_pos_count / total_tweets) * 100:.2f}%)",
+            f"{total_afinn_neg_count} ({(total_afinn_neg_count / total_tweets) * 100:.2f}%)",
+            f"{total_afinn_neu_count} ({(total_afinn_neu_count / total_tweets) * 100:.2f}%)",
+            total_tweets,
+            f"{total_time:.10f}",
+            f"{total_fuzzy_time:.10f}",
+            f"{total_defuzz_time:.10f}",
+            f"{total_vader_fuzzy_time:.10f}",
+            f"{total_vader_defuzz_time:.10f}",
+            f"{total_afinn_fuzzy_time:.10f}",
+            f"{total_afinn_defuzz_time:.10f}"
         ]
     }
     
@@ -262,10 +290,10 @@ def main():
     # Módulo 1: Procesamiento del texto según las instrucciones de la Sección 3.1.
     processed_data = process_text_data(traindata)
     
-    # Módulo 2: Análisis de sentimiento usando VADER según las instrucciones de la Sección 3.2.
+    # Módulo 2: Análisis de sentimiento usando VADER y AFINN
     analyzed_data = analyze_sentiment(processed_data)
     
-    # Módulo 4: Definir las funciones de membresía fuzzy según las instrucciones de la Sección 3.3.2 y 3.3.3.
+    # Módulo 4: Definir las funciones de membresía fuzzy
     _, _, x_op, p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos = define_fuzzy_membership()
     
     # Crear una lista para almacenar los datos de la tabla
@@ -273,54 +301,88 @@ def main():
     
     # Iterar sobre los tweets para aplicar las reglas fuzzy y la defuzzificación
     for _, row in analyzed_data.iterrows():
-        pos_score = row['pos']
-        neg_score = row['neg']
+        sentence = row['sentence']
+        pos_score_vader = row['vader_pos']
+        neg_score_vader = row['vader_neg']
+        neu_score_vader = row['vader_neu']
+        pos_score_afinn = row['afinn_pos']
+        neg_score_afinn = row['afinn_neg']
         
-        # Módulo 3: Aplicar la fuzzificación según las instrucciones de la Sección 3.3.1.
-        time_fuzzy_start = time.time()
-        aggregated = fuzzification(pos_score, neg_score, x_op, p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
-        time_fuzzy_end = time.time()
+        # Módulo 3: Aplicar la fuzzificación para VADER
+        time_fuzzy_vader_start = time.time()
+        aggregated_vader = fuzzification(pos_score_vader, neg_score_vader, 'vader', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
+        time_fuzzy_vader_end = time.time()
         
-        # Módulo 5: Defuzzificación y clasificación según las instrucciones de la Sección 3.3.4.
-        time_defuzz_start = time.time()
-        classification, defuzzified_score = defuzzify_and_classify(aggregated, x_op)
-        time_defuzz_end = time.time()
+        # Módulo 3: Aplicar la fuzzificación para AFINN
+        time_fuzzy_afinn_start = time.time()
+        aggregated_afinn = fuzzification(pos_score_afinn, neg_score_afinn, 'afinn', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
+        time_fuzzy_afinn_end = time.time()
         
-        # Añadir los datos a la lista
+        # Módulo 5: Defuzzificación y clasificación para VADER
+        time_defuzz_vader_start = time.time()
+        classification_vader, defuzzified_score_vader = defuzzify_and_classify(aggregated_vader, x_op)
+        time_defuzz_vader_end = time.time()
+        
+        # Módulo 5: Defuzzificación y clasificación para AFINN
+        time_defuzz_afinn_start = time.time()
+        classification_afinn, defuzzified_score_afinn = defuzzify_and_classify(aggregated_afinn, x_op)
+        time_defuzz_afinn_end = time.time()
+        
+        # Añadir los datos a la lista (incluyendo tanto los puntajes de VADER como los de AFINN)
         data.append([
-            row['sentence'],
-            classification,
-            pos_score,
-            neg_score,
-            row['neu'],
-            defuzzified_score,
-            time_fuzzy_end - time_fuzzy_start,
-            time_defuzz_end - time_defuzz_start
+            sentence,
+            classification_vader,
+            pos_score_vader,
+            neg_score_vader,
+            neu_score_vader,
+            defuzzified_score_vader,
+            time_fuzzy_vader_end - time_fuzzy_vader_start,
+            time_defuzz_vader_end - time_defuzz_vader_start,
+            classification_afinn,
+            pos_score_afinn,
+            neg_score_afinn,
+            defuzzified_score_afinn,
+            time_fuzzy_afinn_end - time_fuzzy_afinn_start,
+            time_defuzz_afinn_end - time_defuzz_afinn_start
         ])
         
-        # Visualización de las membresías y resultados
-        #visualize_memberships(aggregated, x_op, defuzzified_score, op_neg, op_neu, op_pos)
+        # Visualización de las membresías y resultados para VADER
+        #visualize_memberships(aggregated_vader, x_op, defuzzified_score_vader, op_neg, op_neu, op_pos)
+        
+        # Visualización de las membresías y resultados para AFINN
+        #visualize_memberships(aggregated_afinn, x_op, defuzzified_score_afinn, op_neg, op_neu, op_pos)
         
     # Crear un DataFrame con los datos
-    df = pd.DataFrame(data, columns=["Tweet", "Clasificación", "Positivo", "Negativo", "Neutral", "Puntuación Defuzzificada", "Tiempo Fuzzy", "Tiempo Defuzz"])
-    
+    df = pd.DataFrame(data, columns=["Tweet", "Tipo VADER", "Pos VADER", "Neg VADER", "Neu VADER", "Defuzz VADER", "Fuzzy VADER T(s)", "Defuzz VADER T(s)", 
+                                              "Tipo AFINN", "Pos AFINN", "Neg AFINN", "Defuzz AFINN", "Fuzzy AFINN T(s)", "Defuzz AFINN T(s)"])
     # Calcular el tiempo total de ejecución
+    total_tweets = len(df)
     total_time = time.time() - start_time
-    total_fuzzy_time = df["Tiempo Fuzzy"].sum()
-    total_defuzz_time = df["Tiempo Defuzz"].sum()
-    
-    # Imprimir la tabla usando tabulate con alineación personalizada
-    df = df.drop(columns=["Tiempo Fuzzy", "Tiempo Defuzz"])
+    total_fuzzy_time = df["Fuzzy VADER T(s)"].sum() + df["Fuzzy AFINN T(s)"].sum()
+    total_defuzz_time = df["Defuzz VADER T(s)"].sum() + df["Defuzz AFINN T(s)"].sum()
+    total_vader_fuzzy_time = df["Fuzzy VADER T(s)"].sum()
+    total_vader_defuzz_time = df["Defuzz VADER T(s)"].sum()
+    total_afinn_fuzzy_time = df["Fuzzy AFINN T(s)"].sum()
+    total_afinn_defuzz_time = df["Defuzz AFINN T(s)"].sum()
+    total_vader_pos_count = (df["Tipo VADER"] == "Positive").sum()
+    total_vader_neg_count = (df["Tipo VADER"] == "Negative").sum()
+    total_vader_neu_count = (df["Tipo VADER"] == "Neutral").sum()
+    total_afinn_pos_count = (df["Tipo AFINN"] == "Positive").sum()
+    total_afinn_neg_count = (df["Tipo AFINN"] == "Negative").sum()
+    total_afinn_neu_count = (df["Tipo AFINN"] == "Neutral").sum()
     
     # Guardar el DataFrame en un archivo CSV
     df.to_csv('output.csv', index=False)
     
     print("Resultados del análisis de sentimiento (head):")
-    print(tabulate(df.head(), headers="keys", tablefmt="grid", showindex=False, colalign=("left", "center", "center", "center", "center")))
-
+    # Modificar los nombres de las columnas con saltos de línea para ajuste de texto
+    df = df.drop(columns=["Fuzzy VADER T(s)", "Fuzzy AFINN T(s)", "Defuzz VADER T(s)", "Defuzz AFINN T(s)"])
+    df.columns = df.columns.str.replace(' ', '\n')
+    print(tabulate(df.head(10), headers="keys", tablefmt="grid", showindex=False, colalign=("left", "center", "center", "center", "center", "center", "center", "center", "center", "center"), stralign="left", maxcolwidths=[100, 10, 10, 10, 10, 10, 10, 10, 10, 10]))
+    
     # Módulo 6: Generar un resumen de los resultados
-    benchmarks_and_summary(df, total_time, total_fuzzy_time, total_defuzz_time)
+    benchmarks_and_summary(total_time, total_fuzzy_time, total_defuzz_time, total_vader_fuzzy_time, total_vader_defuzz_time, total_afinn_fuzzy_time, total_afinn_defuzz_time, total_vader_pos_count, total_vader_neg_count, total_vader_neu_count, total_afinn_pos_count, total_afinn_neg_count, total_afinn_neu_count, total_tweets)
 
 # Ejecutar la función principal
-if __name__ == "__main__":#
+if __name__ == "__main__":
     main()
