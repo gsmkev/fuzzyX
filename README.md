@@ -76,4 +76,5 @@ Este proyecto está bajo la licencia MIT. Puedes ver más detalles en el archivo
 ## 👥 Integrantes del proyecto:
 
 Kevin Galeano
+
 Majo Duarte

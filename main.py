@@ -9,6 +9,10 @@ import os
 import nltk
 from tabulate import tabulate
 from afinn import Afinn
+from tqdm import tqdm
+
+# Inicializar tqdm para mostrar el progreso
+tqdm.pandas()
 
 # Descargar y configurar VADER lexicon
 nltk.download('vader_lexicon', download_dir=os.getcwd())
@@ -19,7 +23,7 @@ os.system('cls||clear')
 start_time = time.perf_counter()
 
 # Cargar los datos
-traindata = pd.read_csv('input.csv')
+traindata = pd.read_csv('input.csv', nrows=1000)
 
 # Módulo 1: Procesamiento del texto
 def process_text_data(data):
@@ -57,7 +61,8 @@ def process_text_data(data):
         return phrase
     
     # Aplicar la función clean a la columna 'sentence' para eliminar caracteres especiales, URLs y reemplazar contracciones
-    data['sentence'] = data['sentence'].apply(lambda x: clean(x.lower()))
+    tqdm.pandas(desc="Procesando texto (Limpiando caracteres y reemplazando contracciones)")
+    data['sentence'] = data['sentence'].progress_apply(lambda x: clean(x.lower()))
     return data
 
 # Módulo 2: Análisis de sentimiento usando VADER y AFINN
@@ -75,16 +80,25 @@ def analyze_sentiment(data):
     afinn = Afinn()
 
     # Calcular los puntajes de sentimiento para cada oración
-    data['vader_pos'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['pos'])
-    data['vader_neg'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['neg'])
-    data['vader_neu'] = data['sentence'].apply(lambda x: sid.polarity_scores(x)['neu'])
+    tqdm.pandas(desc="Calculando puntajes positivos de VADER")
+    data['vader_pos'] = data['sentence'].progress_apply(lambda x: sid.polarity_scores(x)['pos'])
+    
+    tqdm.pandas(desc="Calculando puntajes negativos de VADER")
+    data['vader_neg'] = data['sentence'].progress_apply(lambda x: sid.polarity_scores(x)['neg'])
+    
+    tqdm.pandas(desc="Calculando puntajes neutrales de VADER")
+    data['vader_neu'] = data['sentence'].progress_apply(lambda x: sid.polarity_scores(x)['neu'])
     
     # Calcular puntajes de AFINN
-    data['afinn_score'] = data['sentence'].apply(lambda x: afinn.score(x))
+    tqdm.pandas(desc="Calculando puntajes de AFINN")
+    data['afinn_score'] = data['sentence'].progress_apply(lambda x: afinn.score(x))
     
     # Determinar si el puntaje de AFINN es positivo o negativo
-    data['afinn_pos'] = data['afinn_score'].apply(lambda x: x if x > 0 else 0)
-    data['afinn_neg'] = data['afinn_score'].apply(lambda x: abs(x) if x < 0 else 0)
+    tqdm.pandas(desc="Calculando puntajes positivos de AFINN")
+    data['afinn_pos'] = data['afinn_score'].progress_apply(lambda x: x if x > 0 else 0)
+    
+    tqdm.pandas(desc="Calculando puntajes negativos de AFINN")
+    data['afinn_neg'] = data['afinn_score'].progress_apply(lambda x: abs(x) if x < 0 else 0)
     
     return data
 
@@ -338,65 +352,69 @@ def main():
     data = []
     
     # Iterar sobre los tweets para aplicar las reglas fuzzy y la defuzzificación
-    for _, row in analyzed_data.iterrows():
-        sentence = row['sentence']
-        pos_score_vader = row['vader_pos']
-        neg_score_vader = row['vader_neg']
-        neu_score_vader = row['vader_neu']
-        pos_score_afinn = row['afinn_pos']
-        neg_score_afinn = row['afinn_neg']
-        
-        # Módulo 3: Aplicar la fuzzificación para VADER según las instrucciones de la Sección 3.3.1.
-        time_fuzzy_vader_start = time.perf_counter()
-        aggregated_vader = fuzzification(pos_score_vader, neg_score_vader, 'vader', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
-        time_fuzzy_vader_end = time.perf_counter()
-        
-        # Módulo 3: Aplicar la fuzzificación para AFINN según las instrucciones de la Sección 3.3.1.
-        time_fuzzy_afinn_start = time.perf_counter()
-        aggregated_afinn = fuzzification(pos_score_afinn, neg_score_afinn, 'afinn', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
-        time_fuzzy_afinn_end = time.perf_counter()
-        
-        # Módulo 5: Defuzzificación y clasificación para VADER según las instrucciones de la Sección 3.3.4.
-        time_defuzz_vader_start = time.perf_counter()
-        classification_vader, defuzzified_score_vader = defuzzify_and_classify(aggregated_vader, x_op)
-        time_defuzz_vader_end = time.perf_counter()
-        
-        # Módulo 5: Defuzzificación y clasificación para AFINN según las instrucciones de la Sección 3.3.4.
-        time_defuzz_afinn_start = time.perf_counter()
-        classification_afinn, defuzzified_score_afinn = defuzzify_and_classify(aggregated_afinn, x_op)
-        time_defuzz_afinn_end = time.perf_counter()
-        
-        # Añadir los datos a la lista (incluyendo tanto los puntajes de VADER como los de AFINN)
-        data.append([
-            sentence,
-            classification_vader,
-            pos_score_vader,
-            neg_score_vader,
-            neu_score_vader,
-            defuzzified_score_vader,
-            time_fuzzy_vader_start,
-            time_fuzzy_vader_end,
-            round(time_fuzzy_vader_end - time_fuzzy_vader_start, 10),
-            time_defuzz_vader_start,
-            time_defuzz_vader_end,
-            round(time_defuzz_vader_end - time_defuzz_vader_start, 10),
-            classification_afinn,
-            pos_score_afinn,
-            neg_score_afinn,
-            defuzzified_score_afinn,
-            time_fuzzy_afinn_start,
-            time_fuzzy_afinn_end,
-            round(time_fuzzy_afinn_end - time_fuzzy_afinn_start, 10),
-            time_defuzz_afinn_start,
-            time_defuzz_afinn_end,
-            round(time_defuzz_afinn_end - time_defuzz_afinn_start, 10)
-        ])
-        
-        # Visualización de las membresías y resultados para VADER
-        #visualize_memberships(aggregated_vader, x_op, defuzzified_score_vader, op_neg, op_neu, op_pos)
-        
-        # Visualización de las membresías y resultados para AFINN
-        #visualize_memberships(aggregated_afinn, x_op, defuzzified_score_afinn, op_neg, op_neu, op_pos)
+    with tqdm(total=analyzed_data.shape[0], desc="Procesando tweets (Fuzzificando y Defuzzificando)") as pbar:
+        for _, row in analyzed_data.iterrows():
+            sentence = row['sentence']
+            pos_score_vader = row['vader_pos']
+            neg_score_vader = row['vader_neg']
+            neu_score_vader = row['vader_neu']
+            pos_score_afinn = row['afinn_pos']
+            neg_score_afinn = row['afinn_neg']
+            
+            # Módulo 3: Aplicar la fuzzificación para VADER según las instrucciones de la Sección 3.3.1.
+            time_fuzzy_vader_start = time.perf_counter()
+            aggregated_vader = fuzzification(pos_score_vader, neg_score_vader, 'vader', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
+            time_fuzzy_vader_end = time.perf_counter()
+            
+            # Módulo 3: Aplicar la fuzzificación para AFINN según las instrucciones de la Sección 3.3.1.
+            time_fuzzy_afinn_start = time.perf_counter()
+            aggregated_afinn = fuzzification(pos_score_afinn, neg_score_afinn, 'afinn', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
+            time_fuzzy_afinn_end = time.perf_counter()
+            
+            # Módulo 5: Defuzzificación y clasificación para VADER según las instrucciones de la Sección 3.3.4.
+            time_defuzz_vader_start = time.perf_counter()
+            classification_vader, defuzzified_score_vader = defuzzify_and_classify(aggregated_vader, x_op)
+            time_defuzz_vader_end = time.perf_counter()
+            
+            # Módulo 5: Defuzzificación y clasificación para AFINN según las instrucciones de la Sección 3.3.4.
+            time_defuzz_afinn_start = time.perf_counter()
+            classification_afinn, defuzzified_score_afinn = defuzzify_and_classify(aggregated_afinn, x_op)
+            time_defuzz_afinn_end = time.perf_counter()
+            
+            # Añadir los datos a la lista (incluyendo tanto los puntajes de VADER como los de AFINN)
+            data.append([
+                sentence,
+                classification_vader,
+                pos_score_vader,
+                neg_score_vader,
+                neu_score_vader,
+                defuzzified_score_vader,
+                time_fuzzy_vader_start,
+                time_fuzzy_vader_end,
+                round(time_fuzzy_vader_end - time_fuzzy_vader_start, 10),
+                time_defuzz_vader_start,
+                time_defuzz_vader_end,
+                round(time_defuzz_vader_end - time_defuzz_vader_start, 10),
+                classification_afinn,
+                pos_score_afinn,
+                neg_score_afinn,
+                defuzzified_score_afinn,
+                time_fuzzy_afinn_start,
+                time_fuzzy_afinn_end,
+                round(time_fuzzy_afinn_end - time_fuzzy_afinn_start, 10),
+                time_defuzz_afinn_start,
+                time_defuzz_afinn_end,
+                round(time_defuzz_afinn_end - time_defuzz_afinn_start, 10)
+            ])
+            
+            # Visualización de las membresías y resultados para VADER
+            #visualize_memberships(aggregated_vader, x_op, defuzzified_score_vader, op_neg, op_neu, op_pos)
+            
+            # Visualización de las membresías y resultados para AFINN
+            #visualize_memberships(aggregated_afinn, x_op, defuzzified_score_afinn, op_neg, op_neu, op_pos)
+            
+            # Actualizar el progreso
+            pbar.update(1)
         
     # Crear un DataFrame con los datos
     df = pd.DataFrame(data, columns=["Tweet", "Tipo VADER", "Pos VADER", "Neg VADER", "Neu VADER", "Defuzz VADER", "Fuzzy VADER start T(s)", "Fuzzy VADER end T(s)", "Fuzzy VADER delta T(s)", "Defuzz VADER start T(s)", "Defuzz VADER end T(s)", "Defuzz VADER delta T(s)",
