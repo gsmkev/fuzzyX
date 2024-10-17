@@ -16,7 +16,7 @@ nltk.data.path.append(os.getcwd())
 os.system('cls||clear')
 
 # Iniciar medición de tiempo
-start_time = time.time()
+start_time = time.perf_counter()
 
 # Cargar los datos
 traindata = pd.read_csv('input.csv')
@@ -347,24 +347,24 @@ def main():
         neg_score_afinn = row['afinn_neg']
         
         # Módulo 3: Aplicar la fuzzificación para VADER según las instrucciones de la Sección 3.3.1.
-        time_fuzzy_vader_start = time.time()
+        time_fuzzy_vader_start = time.perf_counter()
         aggregated_vader = fuzzification(pos_score_vader, neg_score_vader, 'vader', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
-        time_fuzzy_vader_end = time.time()
+        time_fuzzy_vader_end = time.perf_counter()
         
         # Módulo 3: Aplicar la fuzzificación para AFINN según las instrucciones de la Sección 3.3.1.
-        time_fuzzy_afinn_start = time.time()
+        time_fuzzy_afinn_start = time.perf_counter()
         aggregated_afinn = fuzzification(pos_score_afinn, neg_score_afinn, 'afinn', p_lo, p_md, p_hi, n_lo, n_md, n_hi, op_neg, op_neu, op_pos)
-        time_fuzzy_afinn_end = time.time()
+        time_fuzzy_afinn_end = time.perf_counter()
         
         # Módulo 5: Defuzzificación y clasificación para VADER según las instrucciones de la Sección 3.3.4.
-        time_defuzz_vader_start = time.time()
+        time_defuzz_vader_start = time.perf_counter()
         classification_vader, defuzzified_score_vader = defuzzify_and_classify(aggregated_vader, x_op)
-        time_defuzz_vader_end = time.time()
+        time_defuzz_vader_end = time.perf_counter()
         
         # Módulo 5: Defuzzificación y clasificación para AFINN según las instrucciones de la Sección 3.3.4.
-        time_defuzz_afinn_start = time.time()
+        time_defuzz_afinn_start = time.perf_counter()
         classification_afinn, defuzzified_score_afinn = defuzzify_and_classify(aggregated_afinn, x_op)
-        time_defuzz_afinn_end = time.time()
+        time_defuzz_afinn_end = time.perf_counter()
         
         # Añadir los datos a la lista (incluyendo tanto los puntajes de VADER como los de AFINN)
         data.append([
@@ -403,7 +403,7 @@ def main():
                                               "Tipo AFINN", "Pos AFINN", "Neg AFINN", "Defuzz AFINN", "Fuzzy AFINN start T(s)", "Fuzzy AFINN end T(s)", "Fuzzy AFINN delta T(s)", "Defuzz AFINN start T(s)", "Defuzz AFINN end T(s)", "Defuzz AFINN delta T(s)"])
     # Calcular el tiempo total de ejecución
     total_tweets = len(df)
-    total_time = time.time() - start_time
+    total_time = time.perf_counter() - start_time
     total_fuzzy_time = df["Fuzzy VADER delta T(s)"].sum() + df["Fuzzy AFINN delta T(s)"].sum()
     total_defuzz_time = df["Defuzz VADER delta T(s)"].sum() + df["Defuzz AFINN delta T(s)"].sum()
     total_vader_fuzzy_time = df["Fuzzy VADER delta T(s)"].sum()
