@@ -374,14 +374,22 @@ def main():
             neg_score_vader,
             neu_score_vader,
             defuzzified_score_vader,
-            time_fuzzy_vader_end - time_fuzzy_vader_start,
-            time_defuzz_vader_end - time_defuzz_vader_start,
+            time_fuzzy_vader_start,
+            time_fuzzy_vader_end,
+            round(time_fuzzy_vader_end - time_fuzzy_vader_start, 10),
+            time_defuzz_vader_start,
+            time_defuzz_vader_end,
+            round(time_defuzz_vader_end - time_defuzz_vader_start, 10),
             classification_afinn,
             pos_score_afinn,
             neg_score_afinn,
             defuzzified_score_afinn,
-            time_fuzzy_afinn_end - time_fuzzy_afinn_start,
-            time_defuzz_afinn_end - time_defuzz_afinn_start
+            time_fuzzy_afinn_start,
+            time_fuzzy_afinn_end,
+            round(time_fuzzy_afinn_end - time_fuzzy_afinn_start, 10),
+            time_defuzz_afinn_start,
+            time_defuzz_afinn_end,
+            round(time_defuzz_afinn_end - time_defuzz_afinn_start, 10)
         ])
         
         # Visualización de las membresías y resultados para VADER
@@ -391,17 +399,17 @@ def main():
         #visualize_memberships(aggregated_afinn, x_op, defuzzified_score_afinn, op_neg, op_neu, op_pos)
         
     # Crear un DataFrame con los datos
-    df = pd.DataFrame(data, columns=["Tweet", "Tipo VADER", "Pos VADER", "Neg VADER", "Neu VADER", "Defuzz VADER", "Fuzzy VADER T(s)", "Defuzz VADER T(s)", 
-                                              "Tipo AFINN", "Pos AFINN", "Neg AFINN", "Defuzz AFINN", "Fuzzy AFINN T(s)", "Defuzz AFINN T(s)"])
+    df = pd.DataFrame(data, columns=["Tweet", "Tipo VADER", "Pos VADER", "Neg VADER", "Neu VADER", "Defuzz VADER", "Fuzzy VADER start T(s)", "Fuzzy VADER end T(s)", "Fuzzy VADER delta T(s)", "Defuzz VADER start T(s)", "Defuzz VADER end T(s)", "Defuzz VADER delta T(s)",
+                                              "Tipo AFINN", "Pos AFINN", "Neg AFINN", "Defuzz AFINN", "Fuzzy AFINN start T(s)", "Fuzzy AFINN end T(s)", "Fuzzy AFINN delta T(s)", "Defuzz AFINN start T(s)", "Defuzz AFINN end T(s)", "Defuzz AFINN delta T(s)"])
     # Calcular el tiempo total de ejecución
     total_tweets = len(df)
     total_time = time.time() - start_time
-    total_fuzzy_time = df["Fuzzy VADER T(s)"].sum() + df["Fuzzy AFINN T(s)"].sum()
-    total_defuzz_time = df["Defuzz VADER T(s)"].sum() + df["Defuzz AFINN T(s)"].sum()
-    total_vader_fuzzy_time = df["Fuzzy VADER T(s)"].sum()
-    total_vader_defuzz_time = df["Defuzz VADER T(s)"].sum()
-    total_afinn_fuzzy_time = df["Fuzzy AFINN T(s)"].sum()
-    total_afinn_defuzz_time = df["Defuzz AFINN T(s)"].sum()
+    total_fuzzy_time = df["Fuzzy VADER delta T(s)"].sum() + df["Fuzzy AFINN delta T(s)"].sum()
+    total_defuzz_time = df["Defuzz VADER delta T(s)"].sum() + df["Defuzz AFINN delta T(s)"].sum()
+    total_vader_fuzzy_time = df["Fuzzy VADER delta T(s)"].sum()
+    total_vader_defuzz_time = df["Defuzz VADER delta T(s)"].sum()
+    total_afinn_fuzzy_time = df["Fuzzy AFINN delta T(s)"].sum()
+    total_afinn_defuzz_time = df["Defuzz AFINN delta T(s)"].sum()
     total_vader_pos_count = (df["Tipo VADER"] == "Positive").sum()
     total_vader_neg_count = (df["Tipo VADER"] == "Negative").sum()
     total_vader_neu_count = (df["Tipo VADER"] == "Neutral").sum()
@@ -414,7 +422,7 @@ def main():
     
     print("Resultados del análisis de sentimiento (head):")
     # Modificar los nombres de las columnas con saltos de línea para ajuste de texto
-    df = df.drop(columns=["Fuzzy VADER T(s)", "Fuzzy AFINN T(s)", "Defuzz VADER T(s)", "Defuzz AFINN T(s)"])
+    df = df.drop(columns=["Fuzzy VADER start T(s)", "Fuzzy VADER end T(s)", "Fuzzy VADER delta T(s)", "Defuzz VADER start T(s)", "Defuzz VADER end T(s)", "Defuzz VADER delta T(s)", "Fuzzy AFINN start T(s)", "Fuzzy AFINN end T(s)", "Fuzzy AFINN delta T(s)", "Defuzz AFINN start T(s)", "Defuzz AFINN end T(s)", "Defuzz AFINN delta T(s)"])
     df.columns = df.columns.str.replace(' ', '\n')
     print(tabulate(df.head(10), headers="keys", tablefmt="grid", showindex=False, colalign=("left", "center", "center", "center", "center", "center", "center", "center", "center", "center"), stralign="left", maxcolwidths=[100, 10, 10, 10, 10, 10, 10, 10, 10, 10]))
     
