@@ -23,7 +23,7 @@ os.system('cls||clear')
 start_time = time.perf_counter()
 
 # Cargar los datos
-traindata = pd.read_csv('input.csv', nrows=1000)
+tweets = pd.read_csv('input.csv', nrows=1000)
 
 # Módulo 1: Procesamiento del texto
 def process_text_data(data):
@@ -395,7 +395,7 @@ def main():
      - total_tweets: Número total de tweets analizados.
     """
     # Módulo 1: Procesamiento del texto según las instrucciones de la Sección 3.1.
-    processed_data = process_text_data(traindata)
+    processed_data = process_text_data(tweets)
     
     # Módulo 2: Análisis de sentimiento usando VADER y AFINN según las instrucciones de la Sección 3.2.
     analyzed_data = analyze_sentiment(processed_data)
